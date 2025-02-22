@@ -6,11 +6,19 @@ use std::time::Duration;
 use tokio::time::interval;
 use tracing::{error, info};
 
-trait GitSyncPush {
+pub trait GitSyncPush {
     fn has_staged_changes(&self) -> Result<bool>;
     fn add_changes(&mut self) -> Result<()>;
     fn commit_staged_changes(&mut self, author_name: &str, author_email: &str) -> Result<Oid>;
     fn push_commits(&mut self, username: &str, password: &str) -> Result<()>;
+    async fn synchronize(
+        &mut self,
+        sync_period: Duration,
+        author_name: String,
+        author_email: String,
+        username: String,
+        password: String,
+    ) -> Result<()>;
 }
 
 impl GitSyncPush for Repository {
@@ -77,71 +85,71 @@ impl GitSyncPush for Repository {
 
         Ok(())
     }
-}
 
-pub async fn synchronize_repo(
-    mut repo: Repository,
-    sync_period: Duration,
-    author_name: String,
-    author_email: String,
-    username: String,
-    password: String,
-) -> Result<()> {
-    let mut periodic_timer = interval(sync_period);
+    async fn synchronize(
+        &mut self,
+        sync_period: Duration,
+        author_name: String,
+        author_email: String,
+        username: String,
+        password: String,
+    ) -> Result<()> {
+        let mut periodic_timer = interval(sync_period);
 
-    loop {
-        tokio::select! {
-            _ = periodic_timer.tick() => {
-                repo.add_changes()?;
+        loop {
+            tokio::select! {
+                _ = periodic_timer.tick() => {
+                    self.add_changes()?;
 
-                if !repo.has_staged_changes()? {
-                    info!("No changes detected, skipping");
-                    continue;
-                }
+                    if !self.has_staged_changes()? {
+                        info!("No changes detected, skipping");
+                        continue;
+                    }
 
-                match repo.commit_staged_changes(&author_name, &author_email) {
-                    Ok(commit_id) => info!("Changes have been commited: {}", commit_id),
-                    Err(error) => {
-                        error!("Failed to commit changes: {}", error);
-                        // Skip push upon commit errors
-                        continue
+                    match self.commit_staged_changes(&author_name, &author_email) {
+                        Ok(commit_id) => info!("Changes have been commited: {}", commit_id),
+                        Err(error) => {
+                            error!("Failed to commit changes: {}", error);
+                            // Skip push upon commit errors
+                            continue
+                        }
+                    }
+
+                    match self.push_commits(&username, &password) {
+                        Ok(_) => info!("Changes have been pushed to the remote"),
+                        Err(error) => error!("Failed to push changes to the remote: {}", error),
                     }
                 }
 
-                match repo.push_commits(&username, &password) {
-                    Ok(_) => info!("Changes have been pushed to the remote"),
-                    Err(error) => error!("Failed to push changes to the remote: {}", error),
+                // Exit the loop upon receiving a termination signal
+                _ = sigint() => {
+                    break;
+                }
+                _ = sigterm() => {
+                    break;
                 }
             }
-
-            // Exit the loop upon receiving a termination signal
-            _ = sigint() => {
-                break;
-            }
-            _ = sigterm() => {
-                break;
-            }
         }
-    }
 
-    info!("Signal received, finishing up...");
+        info!("Signal received, finishing up...");
 
-    // Commit and push any changes before terminating
-    repo.add_changes()?;
-    if repo.has_staged_changes()? {
-        match repo.commit_staged_changes(&author_name, &author_email) {
-            Ok(commit_id) => {
-                info!("Changes have been commited: {}", commit_id);
+        // Commit and push any changes before terminating
+        self.add_changes()?;
+        if self.has_staged_changes()? {
+            match self.commit_staged_changes(&author_name, &author_email) {
+                Ok(commit_id) => {
+                    info!("Changes have been commited: {}", commit_id);
 
-                // Only push when changes are committed
-                match repo.push_commits(&username, &password) {
-                    Ok(_) => info!("Changes have been pushed to the remote"),
-                    Err(error) => error!("Failed to push changes to the remote: {}", error),
+                    // Only push when changes are committed
+                    match self.push_commits(&username, &password) {
+                        Ok(_) => info!("Changes have been pushed to the remote"),
+                        Err(error) => error!("Failed to push changes to the remote: {}", error),
+                    }
                 }
+                Err(error) => error!("Failed to commit changes: {}", error),
             }
-            Err(error) => error!("Failed to commit changes: {}", error),
         }
-    }
 
-    Ok(())
+        Ok(())
+    }
 }

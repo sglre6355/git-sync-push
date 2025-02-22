@@ -2,7 +2,7 @@ mod cli;
 mod git;
 mod signal_handlers;
 
-use crate::{cli::Args, git::synchronize_repo};
+use crate::{cli::Args, git::GitSyncPush};
 use anyhow::{bail, Result};
 use clap::Parser as _;
 use git2::Repository;
@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     debug!("{:?}", args);
 
-    let repo = match Repository::clone(&args.repo, &args.path) {
+    let mut repo = match Repository::clone(&args.repo, &args.path) {
         Ok(repo) => {
             info!("Repository cloned at {}", args.path.display());
             repo
@@ -24,8 +24,7 @@ async fn main() -> Result<()> {
         Err(error) => bail!("Failed to clone the repository: {}", error),
     };
 
-    synchronize_repo(
-        repo,
+    repo.synchronize(
         args.period,
         args.author_name,
         args.author_email,
