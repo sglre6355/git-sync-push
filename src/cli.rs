@@ -20,4 +20,6 @@ pub struct Args {
     #[arg(env = "GITSYNCPUSH_PASSWORD")]
     #[debug("omitted")]
     pub password: String,
+    #[arg(long, env = "GITSYNCPUSH_HTTP_BIND")]
+    pub http_bind: String,
 }

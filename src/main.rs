@@ -1,11 +1,17 @@
 mod cli;
 mod git;
+mod health_check;
 
-use crate::{cli::Args, git::GitSyncPush};
+use crate::{
+    cli::Args,
+    git::GitSyncPush,
+    health_check::{serve_health_endpoints, AppState},
+};
 use anyhow::Result;
 use clap::Parser as _;
 use git2::Repository;
-use tokio::{signal, task::JoinHandle};
+use std::sync::Arc;
+use tokio::{signal, sync::Mutex, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
@@ -37,6 +43,21 @@ async fn main() -> Result<()> {
 
     let token = CancellationToken::new();
 
+    let shared_state = Arc::new(Mutex::new(AppState {
+        is_repo_ready: false,
+    }));
+
+    let api_handle = tokio::task::spawn({
+        let token = token.clone();
+        let shared_state = shared_state.clone();
+        async move {
+            tokio::select! {
+                _ = token.cancelled() => {}
+                _ = serve_health_endpoints(args.http_bind, shared_state) => {}
+            }
+        }
+    });
+
     info!("Cloning repository...");
 
     let mut repo = match Repository::clone(&args.repo, &args.path) {
@@ -48,6 +69,8 @@ async fn main() -> Result<()> {
     };
 
     info!("Repository cloned at {}", args.path.display());
+    // mark the repository as ready for use
+    shared_state.lock().await.is_repo_ready = true;
 
     let sync_handle = tokio::task::spawn({
         let token = token.clone();
@@ -66,8 +89,10 @@ async fn main() -> Result<()> {
 
     let signal_handle = signal_handler(token)?;
 
-    let (sync_result, signal_result) = tokio::join!(sync_handle, signal_handle);
+    let (api_result, sync_result, signal_result) =
+        tokio::join!(api_handle, sync_handle, signal_handle);
 
+    api_result?;
     sync_result??;
     signal_result?;
 
