@@ -1,9 +1,9 @@
-use crate::signal_handlers::{sigint, sigterm};
 use anyhow::Result;
 use chrono::Utc;
 use git2::{Cred, IndexAddOption, Oid, PushOptions, RemoteCallbacks, Repository, Signature};
 use std::time::Duration;
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 pub trait GitSyncPush {
@@ -13,6 +13,7 @@ pub trait GitSyncPush {
     fn push_commits(&mut self, username: &str, password: &str) -> Result<()>;
     async fn synchronize(
         &mut self,
+        token: CancellationToken,
         sync_period: Duration,
         author_name: String,
         author_email: String,
@@ -88,6 +89,7 @@ impl GitSyncPush for Repository {
 
     async fn synchronize(
         &mut self,
+        token: CancellationToken,
         sync_period: Duration,
         author_name: String,
         author_email: String,
@@ -122,10 +124,7 @@ impl GitSyncPush for Repository {
                 }
 
                 // Exit the loop upon receiving a termination signal
-                _ = sigint() => {
-                    break;
-                }
-                _ = sigterm() => {
+                _ = token.cancelled() => {
                     break;
                 }
             }

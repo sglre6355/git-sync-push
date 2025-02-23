@@ -11,5 +11,6 @@ derive_more = { version = "2.0.1", features = ["debug"] }
 git2 = "0.20.0"
 humantime = "2.1.0"
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tokio-util = "0.7.13"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
