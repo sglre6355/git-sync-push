@@ -367,6 +367,7 @@ dependencies = [
  "derive_more",
  "git2",
  "humantime",
+ "libz-sys",
  "tokio",
  "tokio-util",
  "tracing",
