@@ -1,6 +1,7 @@
+use std::{path::PathBuf, time::Duration};
+
 use clap::Parser;
 use derive_more::Debug;
-use std::{path::PathBuf, time::Duration};
 
 #[derive(Debug, Parser)]
 #[command(version, about, long_about = None)]

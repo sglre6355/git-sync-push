@@ -2,18 +2,20 @@ mod cli;
 mod git;
 mod health_check;
 
+use std::sync::Arc;
+
+use anyhow::Result;
+use clap::Parser as _;
+use git2::Repository;
+use tokio::{signal, sync::Mutex, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info};
+
 use crate::{
     cli::Args,
     git::GitSyncPush,
     health_check::{serve_health_endpoints, AppState},
 };
-use anyhow::Result;
-use clap::Parser as _;
-use git2::Repository;
-use std::sync::Arc;
-use tokio::{signal, sync::Mutex, task::JoinHandle};
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
 
 fn signal_handler(token: CancellationToken) -> Result<JoinHandle<()>> {
     let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())?;

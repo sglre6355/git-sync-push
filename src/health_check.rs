@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 use anyhow::{Ok, Result};
 use axum::{extract::State, http::StatusCode, routing::get, Router};
-use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::info;
 

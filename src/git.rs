@@ -1,7 +1,8 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use chrono::Utc;
 use git2::{Cred, IndexAddOption, Oid, PushOptions, RemoteCallbacks, Repository, Signature};
-use std::time::Duration;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
