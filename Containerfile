@@ -1,17 +1,13 @@
-FROM docker.io/lukemathwalker/cargo-chef:latest-rust-1 AS chef
-WORKDIR /build
-
-FROM chef AS planner
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
-
-FROM chef AS builder 
-COPY --from=planner /build/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-COPY . .
-RUN cargo build --release
-
-FROM gcr.io/distroless/cc AS runtime
+FROM rust AS build-env
 WORKDIR /app
-COPY --from=builder /build/target/release/git-sync-push /app/bin
-ENTRYPOINT ["/app/bin"]
+RUN --mount=type=bind,source=src,target=src \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
+    --mount=type=cache,target=/app/target/ \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+    cargo build --locked --release && \
+    cp /app/target/release/git-sync-push /app/git-sync-push
+
+FROM gcr.io/distroless/cc
+COPY --from=build-env /app/git-sync-push /
+CMD ["./git-sync-push"]
